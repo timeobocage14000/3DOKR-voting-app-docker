@@ -3,6 +3,8 @@
 A voting app (Cats vs Dogs) running in containers with Docker Compose.
 Each module has its own Dockerfile and everything starts with a single command.
 
+GitHub repository: https://github.com/timeobocage14000/3DOKR-voting-app-docker
+
 ## Architecture
 
 - `vote`: web page to vote (Python / Flask), port 8080
