@@ -1,31 +1,31 @@
-# Application de vote avec Docker
+# Voting app with Docker
 
-Application de vote (Cats vs Dogs) mise dans des conteneurs avec Docker Compose.
-Chaque module a son Dockerfile et tout se lance avec une seule commande.
+A voting app (Cats vs Dogs) running in containers with Docker Compose.
+Each module has its own Dockerfile and everything starts with a single command.
 
 ## Architecture
 
-- `vote` : page pour voter (Python / Flask), port 8080
-- `result` : page des résultats (Node.js), port 8081
-- `worker` : prend les votes dans Redis et les écrit dans PostgreSQL (.NET)
-- `redis` : file d'attente des votes
-- `db` : base PostgreSQL
+- `vote`: web page to vote (Python / Flask), port 8080
+- `result`: web page showing the results (Node.js), port 8081
+- `worker`: takes the votes from Redis and writes them to PostgreSQL (.NET)
+- `redis`: queue for the votes
+- `db`: PostgreSQL database
 
-Trois réseaux :
+There are three networks:
 
-- `frontend` : `vote` et `result` (les seuls ports publiés)
-- `redis_net` (interne) : `vote`, `redis`, `worker`
-- `db_net` (interne) : `worker`, `db`, `result`
+- `frontend`: `vote` and `result` (the only published ports)
+- `redis_net` (internal): `vote`, `redis`, `worker`
+- `db_net` (internal): `worker`, `db`, `result`
 
-Comme ça `vote` ne peut pas joindre la base, et `result` ne peut pas joindre Redis.
+This way `vote` cannot reach the database, and `result` cannot reach Redis.
 
-## Prérequis
+## Requirements
 
-Docker avec Docker Compose v2.
+Docker with Docker Compose v2.
 
-## Lancer le projet
+## Running the project
 
-Créer le mot de passe de la base (le fichier n'est pas versionné) :
+Create the database password (the file is not versioned):
 
 ```bash
 mkdir -p secrets
@@ -33,58 +33,58 @@ openssl rand -base64 24 | tr -d '\n' > secrets/db_password.txt
 chmod 644 secrets/db_password.txt
 ```
 
-Puis lancer :
+Then start everything:
 
 ```bash
 docker compose up -d --build --wait
 ```
 
-- Vote : http://localhost:8080
-- Résultats : http://localhost:8081
+- Vote: http://localhost:8080
+- Results: http://localhost:8081
 
-Pour arrêter : `docker compose down` (les votes sont gardés) ou `docker compose down -v` (supprime aussi les votes).
+To stop: `docker compose down` (the votes are kept) or `docker compose down -v` (also deletes the votes).
 
-Attention : PostgreSQL lit le mot de passe seulement à la première création du volume. Si on change `secrets/db_password.txt` après, il faut faire `docker compose down -v` avant de relancer.
+Note: PostgreSQL only reads the password the first time the volume is created. If `secrets/db_password.txt` is changed afterwards, run `docker compose down -v` before starting again.
 
-## Choix techniques
+## Technical choices
 
-- Images officielles avec la version complète et la variante Alpine (plus légère)
-- Multi-stage pour `vote`, `result` et `worker` : les dépendances ou la compilation sont faites dans la première étape
-- Utilisateur non-root dans chaque image avec un UID numérique (vote 10001, result 1000, worker 1654), `USER` placé avant les `COPY` qui utilisent `--chown`
-- Un `.dockerignore` par module
-- `CMD` et `ENTRYPOINT` en forme exec
-- Un healthcheck par service, et `depends_on` avec `service_healthy`
-- Volumes nommés `db_data` et `redis_data`
-- Le mot de passe de la base est un secret Docker (`POSTGRES_PASSWORD_FILE`), il n'est pas dans le code
-- `restart: unless-stopped` et des limites de CPU et de mémoire pour chaque service
+- Official images with the full version tag and the Alpine variant (lighter)
+- Multi-stage builds for `vote`, `result` and `worker`: dependencies or compilation are handled in the first stage
+- Non-root user in each image with a numeric UID (vote 10001, result 1000, worker 1654), `USER` placed before the `COPY` instructions, which use `--chown`
+- One `.dockerignore` per module
+- `CMD` and `ENTRYPOINT` in exec form
+- One healthcheck per service, and `depends_on` with `service_healthy`
+- Named volumes `db_data` and `redis_data`
+- The database password is a Docker secret (`POSTGRES_PASSWORD_FILE`), it is not in the code
+- `restart: unless-stopped` and CPU and memory limits for every service
 
 ## Versions
 
-Les versions d'origine ne sont plus maintenues, je les ai changées (vérifié sur endoflife.date le 11/11/2026) :
+The original versions are no longer maintained, so I changed them (checked on endoflife.date on 11/11/2026):
 
-| Composant | Avant | Maintenant | Pourquoi |
-|-----------|-------|------------|----------|
-| Python | 3.11 | 3.14.10 | supporté jusqu'en 2030 |
-| Node.js | 18 | 26.13.0 | version LTS |
-| .NET | 7 | 10.0 | version LTS |
-| PostgreSQL | latest | 18.7 | version figée |
-| Redis | latest | 8.10.3 | version figée |
+| Component | Before | Now | Why |
+|-----------|--------|-----|-----|
+| Python | 3.11 | 3.14.10 | supported until 2030 |
+| Node.js | 18 | 26.13.0 | LTS version |
+| .NET | 7 | 10.0 | LTS version |
+| PostgreSQL | latest | 18.7 | pinned version |
+| Redis | latest | 8.10.3 | pinned version |
 
-Les paquets NuGet et les dépendances Python sont aussi à jour et figés.
-Pour mettre à jour : changer le tag dans le Dockerfile ou le `compose.yaml`, puis `docker compose build --pull` et `docker compose up -d --wait`.
+The NuGet packages and the Python dependencies are also up to date and pinned.
+To update: change the tag in the Dockerfile or in `compose.yaml`, then run `docker compose build --pull` and `docker compose up -d --wait`.
 
-## Modifications du code
+## Code changes
 
-- `vote/app.py` : l'adresse de Redis vient de `REDIS_HOST` et le mode debug est désactivé
-- `result/server.js` : la connexion PostgreSQL vient de variables d'environnement, le mot de passe est lu dans un fichier
-- `result/package-lock.json` : dépendances mises à jour avec `npm update` (failles de sécurité)
-- `worker/Program.cs` : même chose pour PostgreSQL et Redis, et chiffrement GSS désactivé (la bibliothèque n'est pas dans Alpine)
-- `worker/Worker.csproj` : `net7.0` devient `net10.0`, paquets mis à jour
-- `run/*.bash` : supprimés, remplacés par `docker compose`
+- `vote/app.py`: the Redis address comes from `REDIS_HOST` and debug mode is disabled
+- `result/server.js`: the PostgreSQL connection comes from environment variables, the password is read from a file
+- `result/package-lock.json`: dependencies updated with `npm update` (security fixes)
+- `worker/Program.cs`: same for PostgreSQL and Redis, and GSS encryption disabled (the library is not in Alpine)
+- `worker/Worker.csproj`: `net7.0` becomes `net10.0`, packages updated
+- `run/*.bash`: removed, replaced by `docker compose`
 
-## Tests faits
+## Tests done
 
-- les 5 conteneurs sont `healthy` après `docker compose up -d --build --wait`
-- un vote arrive bien dans PostgreSQL et la page des résultats répond
-- les votes sont toujours là après `docker compose down` puis `up`
-- depuis `vote` on ne peut pas joindre `db`, depuis `result` on ne peut pas joindre `redis`
+- the 5 containers are `healthy` after `docker compose up -d --build --wait`
+- a vote reaches PostgreSQL and the results page responds
+- the votes are still there after `docker compose down` then `up`
+- from `vote` the `db` host cannot be reached, from `result` the `redis` host cannot be reached
