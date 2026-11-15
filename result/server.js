@@ -7,11 +7,12 @@ let express = require("express"),
   methodOverride = require("method-override"),
   app = express(),
   server = require("http").Server(app),
-  io = require("socket.io")(server)
+  io = require("socket.io")(server),
+  fs = require("fs")
 
 io.set("transports", ["polling"])
 
-const port = 8888
+const port = process.env.PORT || 8888
 
 io.sockets.on("connection", function (socket) {
 
@@ -23,7 +24,10 @@ io.sockets.on("connection", function (socket) {
 })
 
 const pool = new pg.Pool({
-  connectionString: "postgres://postgres:postgres@localhost/postgres",
+  host: process.env.POSTGRES_HOST || "localhost",
+  user: process.env.POSTGRES_USER || "postgres",
+  database: process.env.POSTGRES_DB || "postgres",
+  password: fs.readFileSync(process.env.POSTGRES_PASSWORD_FILE, "utf8").trim(),
 })
 
 async.retry(
